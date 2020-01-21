@@ -1,0 +1,199 @@
+---
+title: "CO2 concentration in the atmosphere since 1958"
+author: "Manal BENAISSA"
+date: "15/01/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("lubridate")
+library(ggplot2)
+library(scales)
+library(lubridate)
+```
+
+
+```{r}
+data_url = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ_co2/monthly/monthly_in_situ_co2_mlo.csv"
+data =  read.csv(data_url,skip=54, stringsAsFactors = FALSE)
+head(data)
+```
+
+```{r}
+clean_data = data[-c(1, 2),] 
+clean_data$Mn = sprintf("%02d", clean_data$Mn)
+clean_data$new_date = paste(clean_data$Yr, clean_data$Mn, "15" , sep="")
+clean_data$new_date = as.Date(as.character(clean_data$new_date),format="%Y%m%d")
+clean_data = clean_data[,c(11,5)]
+clean_data$CO2[ clean_data$CO2 == "   -99.99" ] = NA
+clean_data$CO2 = as.numeric(clean_data$CO2)
+head(clean_data)
+```
+
+
+```{r}
+ggplot(data = clean_data, aes(x = new_date, y = CO2)) +
+         labs(title = "Evolution of CO2 concentration in Hawaii",
+       subtitle = "(1958-2020)",
+       caption = "Datafrom Scripps CO2 Program",
+       tag = "Figure 1",
+       x = "Date",
+       y = "CO2 Concentration (ppm)") + theme_bw() + geom_point(size = 0.5, color = "grey50")
+```
+
+
+```{r}
+data_periodic_interval = data.frame(month = c(1,2,3,4,5,6,7,8,9,10,11,12), 
+                 min=c(NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA),
+                 max=c(NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA))
+data_periodic_interval$max = tapply(clean_data$CO2, format(clean_data$new_date, '%m'), max, na.rm = TRUE)
+data_periodic_interval$min = tapply(clean_data$CO2, format(clean_data$new_date, '%m'), min, na.rm = TRUE)
+head(data_periodic_interval)
+
+ggplot(data = data_periodic_interval, aes(x = month, y = CO2, colour = interval)) +
+         labs(title = "Evolution interval of CO2 concentration in a year",
+       subtitle = "(1958-2020)",
+       caption = "Datafrom Scripps CO2 Program",
+       tag = "Figure 2",
+       x = "Month",
+       y = "CO2 Concentration (ppm)") + theme_bw() + geom_line(aes(y = min, col = "min")) + 
+    geom_line(aes(y = max, col = "max"))
+```
+
+```{r}
+linear_reg <- lm(data = clean_data, CO2 ~ new_date)
+summary(linear_reg)
+resid(linear_reg) #List of residuals
+plot(density(resid(linear_reg))) #A density plot
+qqnorm(resid(linear_reg)) # A quantile normal plot - good for checking normality
+qqline(resid(linear_reg))
+```
+```{r}
+mean(clean_data$CO2, na.rm=TRUE)
+```
+
+# Scientific methodology Project : CO2 concentration in the atmosphere since 1958
+## Introduction
+Each month, CO2 athmospheric level is measured in the Mauna Loa observatory, in Hawaii. Data provided here combines measurements since 1958. In the context of this study, I'll take the dataset of 15/01/20 (17h).
+
+### About data
+The provided data file contains 10 columns.  Columns 1-4 give the dates in several redundant formats. Column 5 below gives monthly Mauna Loa CO2 concentrations in micro-mol CO2 per mole (ppm), reported on the 2008A SIO manometric mole fraction scale. This is the standard version of the data most often sought. The monthly values have been adjusted to 24:00 hours on the 15th of each month.  Column 6 gives the same data after a seasonal adjustment to remove the quasi-regular seasonal cycle. The adjustment involves subtracting from the data a 4-harmonic fit with a linear gain factor.  Column 7 is a smoothed version of the data generated from a stiff cubic spline function plus 4-harmonic functions with linear gain.  Column 8 is the same smoothed version with the seasonal cycle removed.  Column 9 is identical to Column 5 except that the missing values from Column 5 have been filled with values from Column 7.  Column 10 is identical to Column 6 except missing values have been filled with values from Column 8.  Missing values are denoted by -99.99.
+
+### The (accepted) mission
+1. Make a plot that shows the superposition of a periodic oscillation and a slower systematic evolution.Separate these two phenomena. Characterize the periodic oscillation. 
+2. Find a simple model for the slow contribution, estimate its parameters, and attempt an extrapolation until 2025 (for validating the model using future observations).
+
+## How to use RStudio/R to clean data
+
+We'll start with downloading dataset from Scripps CO2 Program.
+
+> data_url = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ_co2/monthly/monthly_in_situ_co2_mlo.csv"
+
+First 54 lines are comments, we'll skip that. To avoid factor columns (which in this case is very annoying), we'll add *stringsAsFactors = FALSE*.
+
+*Nota Bene* : na.strings doesn't work in my case. I don't know why.
+
+> data =  read.csv(data_url,skip=54, stringsAsFactors = FALSE)
+
+To show first lines :
+
+> head(data)
+
+Ok. As we said in the introduction, first 4 columns are just dates in different formats. Typically, we only need the the 3th or 4th column. Measurement is done each month. I'm not sure to understand "date" format but in this case it doesn't matter : Let's see the format.
+
+> class(data$Date)
+
+We can see that "data" is *factor* (without stringsAsFactors = FALSE) due to first two lines : NA and "Excel". These lines seems to be useless... We can delete them. 
+
+> clean_data = data[-c(1, 2),] 
+
+Now it's better ! But we still have "factor" type. Honestly I don't like used format. I'll try to create another column "new_date" with a better format (for "days", it's always the 15th).
+
+> clean_data$new_date = paste(clean_data$Yr,clean_data$Mn, "15" , sep="/")
+
+I changed the format too :
+
+> clean_data$new_date = as.Date(as.character(clean_data$new_date),format="%Y%m%d")
+
+And now we can clean and reorganize all this stuff. For the moment, we want 11th column (new_date) in first place, and 5th column (CO2). (I'm probably too fussy and It's certainly useless but I learned to clean data now so... ) 
+
+> clean_data = clean_data[,c(11,5)]
+
+We have another point to considerate : missing data (for CO2 column). We know that missing data is represented by "-99.99" value. We want to convert that with "NA" value.
+
+> clean_data$CO2[ clean_data$CO2 == "   -99.99" ] = NA
+> clean_data$CO2 = as.numeric(clean_data$CO2)
+
+Now my data is very clean ! It's time to make some graph.
+
+**Question :** Spaces in *"   -99.99"* are annoying, if I do that :
+
+> clean_data$CO2[ clean_data$CO2 == "-99.99" ] = NA
+
+...It doesn't work. How can I ignore spaces here ?
+
+## How to ggplot.
+
+So now, we'll use ggplot to represent more clearly evolution of CO2 concentration. First of all, we need ggplot2 package :
+
+> install.packages("ggplot2")
+> library(ggplot2)
+
+And now we can see how CO2 concentration evolve :
+
+
+*theme_bw* is just used to control all non-data display. All available theme are here : https://ggplot2.tidyverse.org/reference/ggtheme.html. I used *geom_point* to change the points aesthetic (size, color...). 
+
+The curve that I have is the same as the Wikipedia's one. I guess it's a good sign. Missing data (NA) was removed, I don't know if it's better to show that in the figure, I want to keep it simple. If I want to do it well, I should reajust y axis to the "normal" CO2 concentration (not zero, we never reach no CO2 in athmosphere). But I don't have any idea of what's the CO2 concentration without human impact. It's why I prefer to keep it like that. 
+
+This figure show the global evolution, but as we can see, we have some periodic evolution too. It can be fun to show that to complete first mission. But how ? 
+- I can arbitrarily select 3 or 4 years and show in the same figure the evolution of each one. It'll be clear but not "honnest".
+- In fact, I want to do it for more years just to show that I'm not cheating and I'm not selecting only interesting years. But we have...62 years ? Computing the average will falsify results. I don't know what's the best approach to do that. I can make an interval area...
+
+Let's make an interval. We need first the maximum and minimum value of CO2 concentration for each month. We can translate that with this SQL request :
+
+> select month, min(CO2), max(CO2)
+> from clean_data
+> group by clean_data$new_date.month 
+
+We should have something like that :
+
+| month | min    | max    |
+|-------|--------|--------|
+| 01    | 257.45 | 453.22 |
+| 02    | 210.57 | 421.54 |
+| ...   | ...    | ...    |
+
+So now, we have two curves, one for max and one for min, and area between these two curves represent the "safe" zone, where we find all values. To be honest, I'm quite disappointed by the look of this figure. I expected something that show clearly the periodicity :
+
+![alt text](~/COURS/M2/SCIENTIFIC METHODOLOGY/Project/expected_curves.jpg)
+
+## Time to make some regressions.
+
+The figure from the table above shows a continuous CO2 concentration increasing. It seems to be linear. So let's start with a linear regression.
+
+> linear_reg <- lm(data = clean_data, CO2 ~ new_date)
+> summary(linear_reg)
+
+### How to interpret output
+__Residuals__ : difference between the actual observed response values (CO2 concentration here) and the response values that the model predicted. Visually, it's the vertical distance between the observed value (data point) and the predicted value (regression line). Each data point has one residual (if this one is positive, data point is above the regression line, otherwise the residual will be negative)
+
+![alt text](~/COURS/M2/SCIENTIFIC METHODOLOGY/Project/residual.jpg)
+The sum (and by extension the mean) of all residuals should be zero (at least if it's the best fit). So the median given in R summary should be close to 0. If data fit perfectly with regression line, we should have zero for min, max, 1Q and 3Q. So the best is to have the smallest residuals, or at least the smallest range between min and max, and between 1Q and 3Q.
+
+__Coefficients__ : In this case, only *new_date* is used to make linear regression, but this part is particularly useful when we have other parameters (CO2 ~ new_data + some_parameters). This part of output gives indications about "weight" of each parameter. "Estimate" for nex_date indicates that for an other measurement (= new date), CO2 concentration will increase of 4.301e-03. "Std. Error" gives how precisely was the estimate measured (and gives you next the confidence interval). "t-value" and "Pr(>[t])" gives precisely how much the parameter is important in the model, when stars gives a quick idea of this. Here, we can see that "new_date" has 3 stars, so this parameter is really important (which it's normal in the case of simple regression). 
+
+__Residual Standard Error__ : It gives the margin error. It will be more or less 4.303ppm in this case. It seems reasonable.
+
+__Multiple & Adjusted R-Square__ : It shows the amount of variance explained by the model (In this case, we can forgot Multiple R-Square, we have only one parameter). In other words, it measures the quality of prediction and indicates how close the data are to the fitted regression line. In this case, R-square (= 0.9768) is high, it's a good point. It's mean data fit line at 97.68%. 
+
+__F-Statistic__ :  checks if at least one variable’s weight is significantly different than zero. More used to compare models.
+
+
+
+
+
+
+
+
