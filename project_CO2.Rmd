@@ -7,70 +7,10 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-#install.packages("lubridate")
+#install.packages("aomisc")
 library(ggplot2)
 library(scales)
 library(lubridate)
-```
-
-
-```{r}
-data_url = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ_co2/monthly/monthly_in_situ_co2_mlo.csv"
-data =  read.csv(data_url,skip=54, stringsAsFactors = FALSE)
-head(data)
-```
-
-```{r}
-clean_data = data[-c(1, 2),] 
-clean_data$Mn = sprintf("%02d", clean_data$Mn)
-clean_data$new_date = paste(clean_data$Yr, clean_data$Mn, "15" , sep="")
-clean_data$new_date = as.Date(as.character(clean_data$new_date),format="%Y%m%d")
-clean_data = clean_data[,c(11,5)]
-clean_data$CO2[ clean_data$CO2 == "   -99.99" ] = NA
-clean_data$CO2 = as.numeric(clean_data$CO2)
-head(clean_data)
-```
-
-
-```{r}
-ggplot(data = clean_data, aes(x = new_date, y = CO2)) +
-         labs(title = "Evolution of CO2 concentration in Hawaii",
-       subtitle = "(1958-2020)",
-       caption = "Datafrom Scripps CO2 Program",
-       tag = "Figure 1",
-       x = "Date",
-       y = "CO2 Concentration (ppm)") + theme_bw() + geom_point(size = 0.5, color = "grey50")
-```
-
-
-```{r}
-data_periodic_interval = data.frame(month = c(1,2,3,4,5,6,7,8,9,10,11,12), 
-                 min=c(NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA),
-                 max=c(NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA))
-data_periodic_interval$max = tapply(clean_data$CO2, format(clean_data$new_date, '%m'), max, na.rm = TRUE)
-data_periodic_interval$min = tapply(clean_data$CO2, format(clean_data$new_date, '%m'), min, na.rm = TRUE)
-head(data_periodic_interval)
-
-ggplot(data = data_periodic_interval, aes(x = month, y = CO2, colour = interval)) +
-         labs(title = "Evolution interval of CO2 concentration in a year",
-       subtitle = "(1958-2020)",
-       caption = "Datafrom Scripps CO2 Program",
-       tag = "Figure 2",
-       x = "Month",
-       y = "CO2 Concentration (ppm)") + theme_bw() + geom_line(aes(y = min, col = "min")) + 
-    geom_line(aes(y = max, col = "max"))
-```
-
-```{r}
-linear_reg <- lm(data = clean_data, CO2 ~ new_date)
-summary(linear_reg)
-resid(linear_reg) #List of residuals
-plot(density(resid(linear_reg))) #A density plot
-qqnorm(resid(linear_reg)) # A quantile normal plot - good for checking normality
-qqline(resid(linear_reg))
-```
-```{r}
-mean(clean_data$CO2, na.rm=TRUE)
 ```
 
 # Scientific methodology Project : CO2 concentration in the atmosphere since 1958
@@ -100,6 +40,13 @@ To show first lines :
 
 > head(data)
 
+We have :
+```{r}
+data_url = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ_co2/monthly/monthly_in_situ_co2_mlo.csv"
+data =  read.csv(data_url,skip=54, stringsAsFactors = FALSE)
+head(data)
+```
+
 Ok. As we said in the introduction, first 4 columns are just dates in different formats. Typically, we only need the the 3th or 4th column. Measurement is done each month. I'm not sure to understand "date" format but in this case it doesn't matter : Let's see the format.
 
 > class(data$Date)
@@ -125,6 +72,19 @@ We have another point to considerate : missing data (for CO2 column). We know th
 > clean_data$CO2[ clean_data$CO2 == "   -99.99" ] = NA
 > clean_data$CO2 = as.numeric(clean_data$CO2)
 
+At the end we have :
+
+```{r}
+clean_data = data[-c(1, 2),] 
+clean_data$Mn = sprintf("%02d", clean_data$Mn)
+clean_data$new_date = paste(clean_data$Yr, clean_data$Mn, "15" , sep="")
+clean_data$new_date = as.Date(as.character(clean_data$new_date),format="%Y%m%d")
+clean_data = clean_data[,c(11,5)]
+clean_data$CO2[ clean_data$CO2 == "   -99.99" ] = NA
+clean_data$CO2 = as.numeric(clean_data$CO2)
+head(clean_data)
+```
+
 Now my data is very clean ! It's time to make some graph.
 
 **Question :** Spaces in *"   -99.99"* are annoying, if I do that :
@@ -147,6 +107,18 @@ And now we can see how CO2 concentration evolve :
 
 The curve that I have is the same as the Wikipedia's one. I guess it's a good sign. Missing data (NA) was removed, I don't know if it's better to show that in the figure, I want to keep it simple. If I want to do it well, I should reajust y axis to the "normal" CO2 concentration (not zero, we never reach no CO2 in athmosphere). But I don't have any idea of what's the CO2 concentration without human impact. It's why I prefer to keep it like that. 
 
+
+```{r}
+data_graph = ggplot(data = clean_data, aes(x = new_date, y = CO2)) +
+         labs(title = "Evolution of CO2 concentration in Hawaii",
+       subtitle = "(1958-2020)",
+       caption = "Datafrom Scripps CO2 Program",
+       tag = "Figure 1",
+       x = "Date",
+       y = "CO2 Concentration (ppm)") + theme_bw() + geom_point(size = 0.5, color = "grey50")
+data_graph
+```
+
 This figure show the global evolution, but as we can see, we have some periodic evolution too. It can be fun to show that to complete first mission. But how ? 
 - I can arbitrarily select 3 or 4 years and show in the same figure the evolution of each one. It'll be clear but not "honnest".
 - In fact, I want to do it for more years just to show that I'm not cheating and I'm not selecting only interesting years. But we have...62 years ? Computing the average will falsify results. I don't know what's the best approach to do that. I can make an interval area...
@@ -165,16 +137,47 @@ We should have something like that :
 | 02    | 210.57 | 421.54 |
 | ...   | ...    | ...    |
 
+```{r}
+data_periodic_interval = data.frame(month = c(1,2,3,4,5,6,7,8,9,10,11,12), 
+                 min=c(NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA),
+                 max=c(NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA))
+data_periodic_interval$max = tapply(clean_data$CO2, format(clean_data$new_date, '%m'), max, na.rm = TRUE)
+data_periodic_interval$min = tapply(clean_data$CO2, format(clean_data$new_date, '%m'), min, na.rm = TRUE)
+head(data_periodic_interval)
+```
+
+We can draw curves now :
+
+```{r}
+ggplot(data = data_periodic_interval, aes(x = month, y = CO2, colour = interval)) +
+         labs(title = "Evolution interval of CO2 concentration in a year",
+       subtitle = "(1958-2020)",
+       caption = "Datafrom Scripps CO2 Program",
+       tag = "Figure 2",
+       x = "Month",
+       y = "CO2 Concentration (ppm)") + theme_bw() + geom_line(aes(y = min, col = "min")) + 
+    geom_line(aes(y = max, col = "max"))
+```
+
 So now, we have two curves, one for max and one for min, and area between these two curves represent the "safe" zone, where we find all values. To be honest, I'm quite disappointed by the look of this figure. I expected something that show clearly the periodicity :
 
 ![alt text](~/COURS/M2/SCIENTIFIC METHODOLOGY/Project/expected_curves.jpg)
 
 ## Time to make some regressions.
 
-The figure from the table above shows a continuous CO2 concentration increasing. It seems to be linear. So let's start with a linear regression.
+The figure from the table above shows a continuous CO2 concentration increasing. I don't think it's linear but anyway, let's start with a linear regression just for fun.
 
 > linear_reg <- lm(data = clean_data, CO2 ~ new_date)
 > summary(linear_reg)
+
+
+
+```{r}
+linear_reg <- lm(data = clean_data, CO2 ~ new_date)
+summary(linear_reg)
+qqnorm(resid(linear_reg)) # A quantile normal plot - good for checking normality
+qqline(resid(linear_reg))
+```
 
 ### How to interpret output
 __Residuals__ : difference between the actual observed response values (CO2 concentration here) and the response values that the model predicted. Visually, it's the vertical distance between the observed value (data point) and the predicted value (regression line). Each data point has one residual (if this one is positive, data point is above the regression line, otherwise the residual will be negative)
@@ -188,7 +191,78 @@ __Residual Standard Error__ : It gives the margin error. It will be more or less
 
 __Multiple & Adjusted R-Square__ : It shows the amount of variance explained by the model (In this case, we can forgot Multiple R-Square, we have only one parameter). In other words, it measures the quality of prediction and indicates how close the data are to the fitted regression line. In this case, R-square (= 0.9768) is high, it's a good point. It's mean data fit line at 97.68%. 
 
-__F-Statistic__ :  checks if at least one variable’s weight is significantly different than zero. More used to compare models.
+__F-Statistic__ :  checks if at least one variable’s weight is significantly different than zero. More used to compare models. But I'm not sure how to read that. 
+
+### And graphically ?
+
+First, we have to compute the estimated CO2 concentration and add it to *"clean_data"* dataset. 
+
+> clean_data$predict_CO2 <- predict(linear_reg, clean_data)
+
+Now we have both real value and estimated one in the same table.
+
+Now we can draw this beautiful line in our figure :
+
+> data_graph + geom_line(aes(x = new_date, y = predict_CO2), colour = "red")
+
+```{r}
+clean_data$predict_CO2 = predict(linear_reg, clean_data)
+ggplot(data = clean_data, aes(x = new_date, y = CO2)) +
+         labs(title = "Evolution of CO2 concentration in Hawaii",
+       subtitle = "(1958-2020)",
+       caption = "Datafrom Scripps CO2 Program",
+       tag = "Figure 1",
+       x = "Date",
+       y = "CO2 Concentration (ppm)") + theme_bw() + geom_point(size = 0.5, color = "grey50") + geom_line(aes(x = new_date, y = predict_CO2), colour = "red")
+```
+
+It's quit a good estimation ! But we can do better. In fact, I think that CO2 concentration grows exponentially. Some ecological articles seem to converge on the same conclusion. (I will be happy to discuss about that ! ... but not in this report.) So let's try the exponential regression ! 
+
+## Exponential regression (or how to please Greta Thunberg)
+
+We'll follow the same method than linear regression, but with some small modifications :
+
+> expo_reg = lm(data = clean_data, log(CO2) ~ new_date)
+> summary(expo_reg)
+> clean_data$predict_CO2_exp = exp(predict(expo_reg, clean_data))
+
+The result tends to be slightly better, but doing it with a linear model doesn't make any sense. So I'll try with a non-linear one : nls function. Working with dates causes too many troubles, I'll add another column "ID" to identify each measure. 
+
+```{r}
+clean_data$ID = seq.int(nrow(clean_data))
+clean_data = clean_data[complete.cases(clean_data), ] #let's remove NA values
+clean_data = clean_data[,c(1,4,2,3)]
+head(clean_data)
+```
+
+Nls function need two things :
+- __model formula__ : Here we suppose that data follow exponential evolution. So technically, data will follow this formula : CO2 = a\*exp(b\*ID). 
+nls function needs another option to work : "a" and "b". "a" is the starting value and "b" is the exponential start. I found that we can compute automatically these values but seems to be complex, so we'll eyeball them. 
+
+
+```{r}
+expo_lreg = lm(data = clean_data, log(CO2) ~ ID)
+#st = list(a = exp(coef(expo_lreg)[1]), b = coef(expo_lreg)[2]) #to compute a and b
+st = list(a = 315.70, b = 0.0003668277)
+
+expo_reg = nls(data = clean_data, CO2~a*exp(b*ID), start= st)
+summary(expo_reg)
+
+clean_data$predict_CO2_exp = predict(expo_reg, clean_data)
+
+ggplot(data = clean_data, aes(x = new_date, y = CO2, colour = regression)) +
+         labs(title = "Evolution of CO2 concentration in Hawaii",
+       subtitle = "(1958-2020)",
+       caption = "Datafrom Scripps CO2 Program",
+       tag = "Figure 1",
+       x = "Date",
+       y = "CO2 Concentration (ppm)") + theme_bw() + geom_point(size = 0.5, color = "grey50") + geom_line(aes(x = new_date, y = predict_CO2, col = "linear")) + geom_line(aes(x = new_date, y = predict_CO2_exp,  col = "exponential")) + scale_color_manual(values=c("blue", "red"))
+```
+
+
+
+
+
 
 
 
