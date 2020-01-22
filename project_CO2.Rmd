@@ -186,6 +186,7 @@ So now, we have two curves, one for max and one for min, and area between these 
 ![alt text](images/expected_curves.jpg)
 
 ## Time to make some regressions.
+### Linear regression
 
 The figure from the table above shows a continuous CO2 concentration increasing. I don't think it's linear but anyway, let's start with a linear regression just for fun.
 
@@ -201,7 +202,7 @@ qqnorm(resid(linear_reg)) # A quantile normal plot - good for checking normality
 qqline(resid(linear_reg))
 ```
 
-### How to interpret output
+#### How to interpret output
 __Residuals__ : difference between the actual observed response values (CO2 concentration here) and the response values that the model predicted. Visually, it's the vertical distance between the observed value (data point) and the predicted value (regression line). Each data point has one residual (if this one is positive, data point is above the regression line, otherwise the residual will be negative)
 
 ![alt text](images/residual.jpg)
@@ -215,7 +216,7 @@ __Multiple & Adjusted R-Square__ : It shows the amount of variance explained by 
 
 __F-Statistic__ :  checks if at least one variable’s weight is significantly different than zero. More used to compare models. But I'm not sure how to read that. 
 
-### And graphically ?
+#### And graphically ?
 
 First, we have to compute the estimated CO2 concentration and add it to *"clean_data"* dataset. 
 
@@ -242,16 +243,48 @@ ggplot(data = clean_data, aes(x = new_date, y = CO2)) +
        y = "CO2 Concentration (ppm)") + theme_bw() + geom_point(size = 0.5, color = "grey50") + geom_line(aes(x = new_date, y = predict_CO2), colour = "red")
 ```
 
-It's quit a good estimation ! But we can do better. In fact, I think that CO2 concentration grows exponentially. Some ecological articles seem to converge on the same conclusion. (I will be happy to discuss about that ! ... but not in this report.) So let's try the exponential regression ! 
+It's quit a good estimation ! But we can do better. Let's try a quadratic regression.
 
-## Exponential regression (or how to please Greta Thunberg)
+### Quadratic regression
+
+Quadratic regression will follow same methods than linear one. The only difference is the use of `poly` function :
+
+```{r}
+quad_reg = lm(data = clean_data, CO2 ~ poly(new_date, 2))
+summary(quad_reg)
+```
+
+We obtain :
+```{r}
+clean_data$predict_CO2_quad = predict(quad_reg, clean_data)
+
+ggplot(data = clean_data, aes(x = new_date, y = CO2, colour = regression)) +
+         labs(title = "Evolution of CO2 concentration in Hawaii",
+       subtitle = "(1958-2020)",
+       caption = "Datafrom Scripps CO2 Program",
+       tag = "Figure 1",
+       x = "Date",
+       y = "CO2 Concentration (ppm)") + theme_bw() + geom_point(size = 0.5, color = "grey50") + geom_line(aes(x = new_date, y = predict_CO2, col = "linear")) + geom_line(aes(x = new_date, y = predict_CO2_quad,  col = "exponential")) + scale_color_manual(values=c("blue", "red"))
+```
+
+Clearly better than the linear one (almost perfect) ! Ok but now I want to try an exponential regression. In fact, I think that CO2 concentration grows exponentially. Some ecological articles seem to converge on the same conclusion. (I will be happy to discuss about that ! ... but not in this report.) So let's try the exponential regression ! 
+
+### Exponential regression (or how to please Greta Thunberg)
 
 We'll follow the same method than linear regression, but with some small modifications :
 
-```
-expo_reg = lm(data = clean_data, log(CO2) ~ new_date)
-summary(expo_reg)
-clean_data$predict_CO2_exp = exp(predict(expo_reg, clean_data))
+```{r}
+expo_lreg = lm(data = clean_data, log(CO2) ~ new_date)
+summary(expo_lreg)
+clean_data$predict_CO2_exp = exp(predict(expo_lreg, clean_data))
+
+ggplot(data = clean_data, aes(x = new_date, y = CO2, colour = regression)) +
+         labs(title = "Evolution of CO2 concentration in Hawaii",
+       subtitle = "(1958-2020)",
+       caption = "Datafrom Scripps CO2 Program",
+       tag = "Figure 1",
+       x = "Date",
+       y = "CO2 Concentration (ppm)") + theme_bw() + geom_point(size = 0.5, color = "grey50") + geom_line(aes(x = new_date, y = predict_CO2, col = "linear")) + geom_line(aes(x = new_date, y = predict_CO2_exp,  col = "exponential")) + scale_color_manual(values=c("blue", "red"))
 ```
 
 The result tends to be slightly better, but doing it with a linear model doesn't make any sense. So I'll try with a non-linear one : nls function. Working with dates causes too many troubles, I'll add another column "ID" to identify each measure. 
@@ -259,13 +292,13 @@ The result tends to be slightly better, but doing it with a linear model doesn't
 ```{r}
 clean_data$ID = seq.int(nrow(clean_data))
 clean_data = clean_data[complete.cases(clean_data), ] #let's remove NA values
-clean_data = clean_data[,c(1,4,2,3)]
+clean_data = clean_data[,c(1,6,2,3,4,5)]
 head(clean_data)
 ```
 
 Nls function need two things :
 
-- __model formula__ : Here we suppose that data follow exponential evolution. So technically, data will follow this formula : CO2 = a\*exp(b\*ID). 
+- __model formula__ : Here we suppose that data follow exponential evolution. So technically, data will follow this formula : `CO2 = a*exp(b*ID)`. 
 
 - __start_coefficient__ : nls function needs another option to work : "a" and "b". "a" is the starting value and "b" is the exponential start. I found that we can compute automatically these values but seems to be complex, so we'll eyeball them. 
 
@@ -288,8 +321,7 @@ ggplot(data = clean_data, aes(x = new_date, y = CO2, colour = regression)) +
        y = "CO2 Concentration (ppm)") + theme_bw() + geom_point(size = 0.5, color = "grey50") + geom_line(aes(x = new_date, y = predict_CO2, col = "linear")) + geom_line(aes(x = new_date, y = predict_CO2_exp,  col = "exponential")) + scale_color_manual(values=c("blue", "red"))
 ```
 
-
-
+...But I'm quite disappointed by this curve. I expected something like the quadratic one. I guess data here don't follow exponential law. 
 
 
 
