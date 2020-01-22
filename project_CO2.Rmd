@@ -1,16 +1,16 @@
 ---
 title: "CO2 concentration in the atmosphere since 1958"
 author: "Manal BENAISSA"
-date: "15/01/2020"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-#install.packages("aomisc")
+#install.packages("imager")
 library(ggplot2)
 library(scales)
 library(lubridate)
+library(imager)
 ```
 
 # Scientific methodology Project : CO2 concentration in the atmosphere since 1958
@@ -28,17 +28,22 @@ The provided data file contains 10 columns.  Columns 1-4 give the dates in sever
 
 We'll start with downloading dataset from Scripps CO2 Program.
 
-> data_url = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ_co2/monthly/monthly_in_situ_co2_mlo.csv"
-
+```
+data_url = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ_co2/monthly/monthly_in_situ_co2_mlo.csv"
+```
 First 54 lines are comments, we'll skip that. To avoid factor columns (which in this case is very annoying), we'll add *stringsAsFactors = FALSE*.
 
 *Nota Bene* : na.strings doesn't work in my case. I don't know why.
 
-> data =  read.csv(data_url,skip=54, stringsAsFactors = FALSE)
+```
+data =  read.csv(data_url,skip=54, stringsAsFactors = FALSE)
+```
 
 To show first lines :
 
-> head(data)
+```
+head(data)
+```
 
 We have :
 ```{r}
@@ -49,28 +54,38 @@ head(data)
 
 Ok. As we said in the introduction, first 4 columns are just dates in different formats. Typically, we only need the the 3th or 4th column. Measurement is done each month. I'm not sure to understand "date" format but in this case it doesn't matter : Let's see the format.
 
-> class(data$Date)
+```
+class(data$Date)
+```
 
 We can see that "data" is *factor* (without stringsAsFactors = FALSE) due to first two lines : NA and "Excel". These lines seems to be useless... We can delete them. 
 
-> clean_data = data[-c(1, 2),] 
+```
+clean_data = data[-c(1, 2),]
+```
 
 Now it's better ! But we still have "factor" type. Honestly I don't like used format. I'll try to create another column "new_date" with a better format (for "days", it's always the 15th).
 
-> clean_data$new_date = paste(clean_data$Yr,clean_data$Mn, "15" , sep="/")
+```
+clean_data$new_date = paste(clean_data$Yr,clean_data$Mn, "15" , sep="/")
+```
 
 I changed the format too :
 
-> clean_data$new_date = as.Date(as.character(clean_data$new_date),format="%Y%m%d")
-
+```
+clean_data$new_date = as.Date(as.character(clean_data$new_date),format="%Y%m%d")
+```
 And now we can clean and reorganize all this stuff. For the moment, we want 11th column (new_date) in first place, and 5th column (CO2). (I'm probably too fussy and It's certainly useless but I learned to clean data now so... ) 
 
-> clean_data = clean_data[,c(11,5)]
-
+```
+clean_data = clean_data[,c(11,5)]
+```
 We have another point to considerate : missing data (for CO2 column). We know that missing data is represented by "-99.99" value. We want to convert that with "NA" value.
 
-> clean_data$CO2[ clean_data$CO2 == "   -99.99" ] = NA
-> clean_data$CO2 = as.numeric(clean_data$CO2)
+```
+clean_data$CO2[ clean_data$CO2 == "   -99.99" ] = NA
+clean_data$CO2 = as.numeric(clean_data$CO2)
+```
 
 At the end we have :
 
@@ -89,7 +104,9 @@ Now my data is very clean ! It's time to make some graph.
 
 **Question :** Spaces in *"   -99.99"* are annoying, if I do that :
 
-> clean_data$CO2[ clean_data$CO2 == "-99.99" ] = NA
+```
+clean_data$CO2[ clean_data$CO2 == "-99.99" ] = NA
+```
 
 ...It doesn't work. How can I ignore spaces here ?
 
@@ -97,11 +114,12 @@ Now my data is very clean ! It's time to make some graph.
 
 So now, we'll use ggplot to represent more clearly evolution of CO2 concentration. First of all, we need ggplot2 package :
 
-> install.packages("ggplot2")
-> library(ggplot2)
+```
+install.packages("ggplot2")
+library(ggplot2)
+```
 
 And now we can see how CO2 concentration evolve :
-
 
 *theme_bw* is just used to control all non-data display. All available theme are here : https://ggplot2.tidyverse.org/reference/ggtheme.html. I used *geom_point* to change the points aesthetic (size, color...). 
 
@@ -119,15 +137,19 @@ data_graph = ggplot(data = clean_data, aes(x = new_date, y = CO2)) +
 data_graph
 ```
 
-This figure show the global evolution, but as we can see, we have some periodic evolution too. It can be fun to show that to complete first mission. But how ? 
+This figure show the global evolution, but as we can see, we have some periodic evolution too. It can be fun to show that to complete first mission. But how ?
+
 - I can arbitrarily select 3 or 4 years and show in the same figure the evolution of each one. It'll be clear but not "honnest".
+
 - In fact, I want to do it for more years just to show that I'm not cheating and I'm not selecting only interesting years. But we have...62 years ? Computing the average will falsify results. I don't know what's the best approach to do that. I can make an interval area...
 
 Let's make an interval. We need first the maximum and minimum value of CO2 concentration for each month. We can translate that with this SQL request :
 
-> select month, min(CO2), max(CO2)
-> from clean_data
-> group by clean_data$new_date.month 
+```
+select month, min(CO2), max(CO2)
+from clean_data
+group by clean_data$new_date.month 
+```
 
 We should have something like that :
 
@@ -161,19 +183,19 @@ ggplot(data = data_periodic_interval, aes(x = month, y = CO2, colour = interval)
 
 So now, we have two curves, one for max and one for min, and area between these two curves represent the "safe" zone, where we find all values. To be honest, I'm quite disappointed by the look of this figure. I expected something that show clearly the periodicity :
 
-![alt text](~/COURS/M2/SCIENTIFIC METHODOLOGY/Project/expected_curves.jpg)
+![alt text](images/expected_curves.jpg)
 
 ## Time to make some regressions.
 
 The figure from the table above shows a continuous CO2 concentration increasing. I don't think it's linear but anyway, let's start with a linear regression just for fun.
 
-> linear_reg <- lm(data = clean_data, CO2 ~ new_date)
-> summary(linear_reg)
-
-
+```
+linear_reg = lm(data = clean_data, CO2 ~ new_date)
+summary(linear_reg)
+```
 
 ```{r}
-linear_reg <- lm(data = clean_data, CO2 ~ new_date)
+linear_reg = lm(data = clean_data, CO2 ~ new_date)
 summary(linear_reg)
 qqnorm(resid(linear_reg)) # A quantile normal plot - good for checking normality
 qqline(resid(linear_reg))
@@ -182,7 +204,7 @@ qqline(resid(linear_reg))
 ### How to interpret output
 __Residuals__ : difference between the actual observed response values (CO2 concentration here) and the response values that the model predicted. Visually, it's the vertical distance between the observed value (data point) and the predicted value (regression line). Each data point has one residual (if this one is positive, data point is above the regression line, otherwise the residual will be negative)
 
-![alt text](~/COURS/M2/SCIENTIFIC METHODOLOGY/Project/residual.jpg)
+![alt text](images/residual.jpg)
 The sum (and by extension the mean) of all residuals should be zero (at least if it's the best fit). So the median given in R summary should be close to 0. If data fit perfectly with regression line, we should have zero for min, max, 1Q and 3Q. So the best is to have the smallest residuals, or at least the smallest range between min and max, and between 1Q and 3Q.
 
 __Coefficients__ : In this case, only *new_date* is used to make linear regression, but this part is particularly useful when we have other parameters (CO2 ~ new_data + some_parameters). This part of output gives indications about "weight" of each parameter. "Estimate" for nex_date indicates that for an other measurement (= new date), CO2 concentration will increase of 4.301e-03. "Std. Error" gives how precisely was the estimate measured (and gives you next the confidence interval). "t-value" and "Pr(>[t])" gives precisely how much the parameter is important in the model, when stars gives a quick idea of this. Here, we can see that "new_date" has 3 stars, so this parameter is really important (which it's normal in the case of simple regression). 
@@ -197,13 +219,17 @@ __F-Statistic__ :  checks if at least one variable’s weight is significantly d
 
 First, we have to compute the estimated CO2 concentration and add it to *"clean_data"* dataset. 
 
-> clean_data$predict_CO2 <- predict(linear_reg, clean_data)
+```
+clean_data$predict_CO2 <- predict(linear_reg, clean_data)
+```
 
 Now we have both real value and estimated one in the same table.
 
 Now we can draw this beautiful line in our figure :
 
-> data_graph + geom_line(aes(x = new_date, y = predict_CO2), colour = "red")
+```
+data_graph + geom_line(aes(x = new_date, y = predict_CO2), colour = "red")
+```
 
 ```{r}
 clean_data$predict_CO2 = predict(linear_reg, clean_data)
@@ -222,9 +248,11 @@ It's quit a good estimation ! But we can do better. In fact, I think that CO2 co
 
 We'll follow the same method than linear regression, but with some small modifications :
 
-> expo_reg = lm(data = clean_data, log(CO2) ~ new_date)
-> summary(expo_reg)
-> clean_data$predict_CO2_exp = exp(predict(expo_reg, clean_data))
+```
+expo_reg = lm(data = clean_data, log(CO2) ~ new_date)
+summary(expo_reg)
+clean_data$predict_CO2_exp = exp(predict(expo_reg, clean_data))
+```
 
 The result tends to be slightly better, but doing it with a linear model doesn't make any sense. So I'll try with a non-linear one : nls function. Working with dates causes too many troubles, I'll add another column "ID" to identify each measure. 
 
@@ -236,9 +264,10 @@ head(clean_data)
 ```
 
 Nls function need two things :
-- __model formula__ : Here we suppose that data follow exponential evolution. So technically, data will follow this formula : CO2 = a\*exp(b\*ID). 
-nls function needs another option to work : "a" and "b". "a" is the starting value and "b" is the exponential start. I found that we can compute automatically these values but seems to be complex, so we'll eyeball them. 
 
+- __model formula__ : Here we suppose that data follow exponential evolution. So technically, data will follow this formula : CO2 = a\*exp(b\*ID). 
+
+- __start_coefficient__ : nls function needs another option to work : "a" and "b". "a" is the starting value and "b" is the exponential start. I found that we can compute automatically these values but seems to be complex, so we'll eyeball them. 
 
 ```{r}
 expo_lreg = lm(data = clean_data, log(CO2) ~ ID)
